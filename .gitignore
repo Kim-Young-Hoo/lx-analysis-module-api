@@ -1,0 +1,5 @@
+venv/
+core/
+/.pytest_cache
+/alembic
+

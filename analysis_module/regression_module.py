@@ -20,27 +20,24 @@ class RegressionModule:
     def __init__(self, data: pd.DataFrame, target_column_id: str, dat_no_dat_nm_dict: dict) -> object:
         self.uuid = uuid.uuid4()
         logger.info("class uuid : " + str(self.uuid))
-        self.data = data.iloc[:, 2:]
+        self.data = data
 
-        self.y: str = target_column_id
-        self.X: List[str] = self.data.columns.to_list()
-        self.X.remove(self.y)
+        self.y_column_id: str = target_column_id
+        self.X_column_id_list: List[str] = self.data.columns.to_list()
+
+        self.X_column_id_list.remove(self.y_column_id)
         self.directory: str = None
         self.model: sm.OLS = None
         self.name_dict: dict = dat_no_dat_nm_dict
 
     def save_descriptive_statistics_table(self):
-        """
-        기술 통계량
-        """
         if self.data.empty:
             raise AttributeError("data must be initialized")
-        # self._mkdir()
 
-        # Compute the descriptive statistics
-        statistics = self.data.describe().T
+        statistics = self.data.describe()
+        statistics = statistics.rename(columns=self.name_dict)
+        statistics = statistics.T
         formatted_df = statistics.applymap(lambda x: "{:.0f}".format(x) if isinstance(x, (int, float)) else x)
-
         buffer = io.BytesIO()
         dfi.export(formatted_df, buffer, table_conversion='chrome')
         buffer.seek(0)
@@ -50,8 +47,7 @@ class RegressionModule:
         return base64_table
 
     def fit(self):
-        formula = self.y + " ~ " + " + ".join(self.X)
-        print(formula)
+        formula = self.y_column_id + " ~ " + " + ".join(self.X_column_id_list)
         model = ols(formula, data=self.data)
         self.model = model.fit()
 
@@ -65,6 +61,10 @@ class RegressionModule:
             raise AttributeError("A model hasn't been fitted yet")
 
         anova_table = anova_lm(self.model)
+        anova_table = anova_table.rename(
+            columns={"df": "자유도", "sum_sq": "제곱합", "mean_sq": "평균제곱", "F": "F-통계량"},
+            index=self.name_dict
+        )
         buffer = io.BytesIO()
         dfi.export(anova_table, buffer, table_conversion='chrome')
         buffer.seek(0)

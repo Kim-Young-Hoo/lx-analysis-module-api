@@ -70,7 +70,7 @@ def get_value_period_list(value_period_type: str) -> List[str]:
         return ["ht_1", "ht_2"]
 
 
-def get_pivoted_df(variable_list: List[str], year: int, value_period_type, db: Session):
+def get_pivoted_df(variable_list: List[str], year: str, value_period_type: str, db: Session):
     value_period_list = get_value_period_list(value_period_type)
 
     query_template = """
@@ -109,7 +109,6 @@ def get_pivoted_df(variable_list: List[str], year: int, value_period_type, db: S
     result = db.execute(query, params)
 
     df = pd.DataFrame(result.fetchall(), columns=result.keys())
-
     melted_df = pd.melt(df, id_vars=['yr', 'stdg_cd', 'dat_no', 'dat_nm'], value_vars=value_period_list)
     pivoted_df = pd.pivot_table(melted_df, values='value', index=['yr', 'stdg_cd', 'variable'], columns='dat_no')
 
@@ -123,19 +122,37 @@ def get_pivoted_df(variable_list: List[str], year: int, value_period_type, db: S
 
 
 if __name__ == '__main__':
-    create_correlation = CreateCorrelation(
-        variable_list=["M0002001" + str(i) for i in range(0, 10)],
+    # create_correlation = CreateCorrelation(
+    #     variable_list=["M0002001" + str(i) for i in range(0, 10)],
+    #     year="2021",
+    #     value_period_type="year",
+    #     testing_side="both",
+    #     valid_pvalue_accent=True
+    # )
+
+    # df, dic = get_pivoted_df(create_correlation.variable_list, create_correlation.year,
+    #                          create_correlation.value_period_type, get_db().__next__())
+    # correlation_module = CorrelationModule(df.iloc[:, 3:], dic)
+    # pair_plot = correlation_module.save_pair_plot(),
+    # heatmap_plot = correlation_module.save_heatmap_plot(),
+    # descriptive_statistics_table = correlation_module.save_descriptive_statistics_table()
+
+    create_regression = CreateRegression(
+        independent_variable_list=["M0002001" + str(i) for i in range(0, 10)],
+        dependent_variable="M00020011",
         year="2021",
-        value_period_type="yr_vl",
+        value_period_type="year",
         testing_side="both",
         valid_pvalue_accent=True
     )
 
-    print(create_correlation.variable_list)
+    df, dic = get_pivoted_df(create_regression.independent_variable_list + [create_regression.dependent_variable],
+                             create_regression.year,
+                             create_regression.value_period_type,
+                             get_db().__next__())
 
-    df, dic = get_pivoted_df(create_correlation.variable_list, create_correlation.year,
-                             create_correlation.value_period_type, get_db().__next__())
-    correlation_module = CorrelationModule(df.iloc[:, 3:], dic)
-    # pair_plot = correlation_module.save_pair_plot(),
-    # heatmap_plot = correlation_module.save_heatmap_plot(),
-    # descriptive_statistics_table = correlation_module.save_descriptive_statistics_table()
+    regression_module = RegressionModule(df.iloc[:, 3:], create_regression.dependent_variable, dic)
+    regression_module.fit()
+    print(regression_module.get_anova_lm())
+    # regression_module.get_result_summary()
+

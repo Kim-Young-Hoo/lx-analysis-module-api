@@ -2,4 +2,5 @@ venv/
 core/
 /.pytest_cache
 /alembic
-
+**/__pycache__/
+.idea/

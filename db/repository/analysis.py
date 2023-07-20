@@ -14,8 +14,12 @@ from db.models.data import GgsStatis
 
 
 def create_correlation_analysis(analysis_data: CreateCorrelation, db: Session):
-    pivoted_df = get_pivoted_df(analysis_data.variable_list, db)
-    correlation_module = CorrelationModule(pivoted_df.iloc[:, 2:])
+    pivoted_df, dat_no_dat_nm_dict = get_pivoted_df(analysis_data.variable_list,
+                                                    analysis_data.year,
+                                                    analysis_data.value_period_type,
+                                                    db)
+
+    correlation_module = CorrelationModule(pivoted_df.iloc[:, 3:], dat_no_dat_nm_dict)
     corr_result = ShowAnalysis(data=[])
 
     pair_plot = correlation_module.save_pair_plot(),
@@ -29,23 +33,46 @@ def create_correlation_analysis(analysis_data: CreateCorrelation, db: Session):
 
 
 def create_regression_analysis(analysis_data: CreateRegression, db: Session):
-    pivoted_df = get_pivoted_df(analysis_data.independent_variable_list + [analysis_data.dependent_variable], db)
-    print(pivoted_df)
-    regression_module = RegressionModule(pivoted_df, analysis_data.dependent_variable)
+    pivoted_df, dat_no_dat_nm_dict = get_pivoted_df(
+        analysis_data.independent_variable_list + [analysis_data.dependent_variable],
+        analysis_data.year,
+        analysis_data.value_period_type,
+        db)
+
+    regression_module = RegressionModule(pivoted_df, analysis_data.dependent_variable, dat_no_dat_nm_dict)
     regression_module.fit()
-    regression_result = ShowRegression(
-        regression_summary_table=regression_module.get_result_summary(),
-        anova_table=regression_module.get_anova_lm(),
-        descriptive_statistics_table=regression_module.save_descriptive_statistics_table()
-    )
+    regression_summary_table = regression_module.get_result_summary()
+    anova_table = regression_module.get_anova_lm()
+    descriptive_statistics_table = regression_module.save_descriptive_statistics_table()
+
+    regression_result = ShowAnalysis(data=[])
+    regression_result.data.append(AnalysisResult(title="모형요약표", result=regression_summary_table, format="html"))
+    regression_result.data.append(AnalysisResult(title="분산분석표", result=anova_table, format="base64"))
+    regression_result.data.append(AnalysisResult(title="기술통계", result=descriptive_statistics_table, format="base64"))
     return regression_result
 
 
 def create_clustering_analysis(analysis_data: CreateClustering, db: Session):
-    pivoted_df = get_pivoted_df(analysis_data.variable_list, db)
+    pivoted_df, dat_no_dat_nm_dict = get_pivoted_df(analysis_data.variable_list,
+                                                    analysis_data.year,
+                                                    analysis_data.value_period_type,
+                                                    db)
 
 
-def get_pivoted_df(variable_list: List[str], db: Session):
+def get_value_period_list(value_period_type: str) -> List[str]:
+    if value_period_type == "year":
+        return ["yr_vl"]
+    elif value_period_type == "month":
+        return ["jan", "feb", "mar", "apr", "may", "jun", "july", "aug", "sep", "oct", "nov", "dec"]
+    elif value_period_type == "quarter":
+        return ["qu_1", "qu_2", "qu_3", "qu_4"]
+    elif value_period_type == "half":
+        return ["ht_1", "ht_2"]
+
+
+def get_pivoted_df(variable_list: List[str], year: int, value_period_type, db: Session):
+    value_period_list = get_value_period_list(value_period_type)
+
     query_template = """
         SELECT
             stat.stdg_cd,
@@ -74,39 +101,41 @@ def get_pivoted_df(variable_list: List[str], db: Session):
         FROM ggs_statis stat
         JOIN ggs_data_info info ON stat.dat_no = info.dat_no
         WHERE stat.dat_no IN ({})
+        AND yr='{}'
     """
-    # Generate the placeholders for the parameter values
     placeholders = ', '.join([':param{}'.format(i) for i in range(len(variable_list))])
-
-    # Construct the query by inserting the placeholders
-    query = text(query_template.format(placeholders))
-
-    # Bind the parameter values
+    query = text(query_template.format(placeholders, year))
     params = {f'param{i}': value for i, value in enumerate(variable_list)}
-
-    # Execute the query with the parameters
     result = db.execute(query, params)
 
     df = pd.DataFrame(result.fetchall(), columns=result.keys())
-    pivoted_df = pd.pivot_table(df, values='yr_vl', index=['yr', 'stdg_cd'], columns='dat_no')
-    pivoted_df.to_csv("analysis_module/dataset/data.csv")
-    pivoted_df = pd.read_csv("analysis_module/dataset/data.csv")
-    # pivoted_df.to_csv("./data.csv")
-    # pivoted_df = pd.read_csv("./data.csv")
-    return pivoted_df
+
+    melted_df = pd.melt(df, id_vars=['yr', 'stdg_cd', 'dat_no', 'dat_nm'], value_vars=value_period_list)
+    pivoted_df = pd.pivot_table(melted_df, values='value', index=['yr', 'stdg_cd', 'variable'], columns='dat_no')
+
+    dat_no_dat_nm_dict = df.set_index('dat_no')['dat_nm'].to_dict()
+
+    # pivoted_df.to_csv("analysis_module/dataset/data.csv")
+    # pivoted_df = pd.read_csv("analysis_module/dataset/data.csv")
+    pivoted_df.to_csv("./data.csv")
+    pivoted_df = pd.read_csv("./data.csv")
+    return pivoted_df, dat_no_dat_nm_dict
 
 
 if __name__ == '__main__':
     create_correlation = CreateCorrelation(
-        variable_list=["M00026007", "M00026008", "M00026010", "M00026009"],
+        variable_list=["M0002001" + str(i) for i in range(0, 10)],
         year="2021",
         value_period_type="yr_vl",
         testing_side="both",
         valid_pvalue_accent=True
     )
 
-    df = get_pivoted_df(create_correlation.variable_list, get_db().__next__())
-    correlation_module = CorrelationModule(df.iloc[:, 2:])
-    pair_plot = correlation_module.save_pair_plot(),
-    heatmap_plot = correlation_module.save_heatmap_plot(),
-    descriptive_statistics_table = correlation_module.save_descriptive_statistics_table()
+    print(create_correlation.variable_list)
+
+    df, dic = get_pivoted_df(create_correlation.variable_list, create_correlation.year,
+                             create_correlation.value_period_type, get_db().__next__())
+    correlation_module = CorrelationModule(df.iloc[:, 3:], dic)
+    # pair_plot = correlation_module.save_pair_plot(),
+    # heatmap_plot = correlation_module.save_heatmap_plot(),
+    # descriptive_statistics_table = correlation_module.save_descriptive_statistics_table()

@@ -12,19 +12,21 @@ import pickle
 
 from sklearn.mixture import GaussianMixture
 
-from .logging_module import logger
+from utils.logging_module import logger
 
 BASE_PATH = "./output/clustering/"
 
 
 class BaseModule(metaclass=ABCMeta):
-    def __init__(self, data: numpy.array):
+    def __init__(self, data: numpy.array, dat_no_dat_nm_dict: dict):
         self.uuid = uuid.uuid4()
         logger.info("class uuid : " + str(self.uuid))
         self.directory: str = None
         self.data: np.array = data
         self.model: object = None
         self.db_connection: object = None
+        self.name_dict: dict = dat_no_dat_nm_dict
+
 
     @abstractmethod
     def fit(self, n_init=100, max_iter=300) -> None: pass

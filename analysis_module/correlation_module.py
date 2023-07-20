@@ -1,31 +1,31 @@
 import matplotlib
-from fastapi import Depends
-
-from db.session import get_db
 
 matplotlib.use('Agg')  # Set the backend to 'Agg'
 
 import base64
 import io
-import itertools
 import os
 import uuid
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 from matplotlib import pyplot as plt
 from typing_extensions import Union, List, Literal
-from .logging_module import logger
+from utils.logging_module import logger
 import seaborn as sns
 import dataframe_image as dfi
-from scipy.stats import stats, pearsonr
+from scipy.stats import pearsonr
+from matplotlib import font_manager
+
+
 
 BASE_PATH = "./output/regression/"
+f_path = 'C:/Windows/Fonts/KoPubDotumLight.ttf'
+plt.rc('font', family=font_manager.FontProperties(fname=f_path).get_name())  # For Windows
 
 
 class CorrelationModule:
 
-    def __init__(self, data: Union[np.ndarray, pd.DataFrame]) -> object:
+    def __init__(self, data: Union[np.ndarray, pd.DataFrame], dat_no_dat_nm_dict: dict) -> object:
         self.uuid = uuid.uuid4()
         logger.info("class uuid : " + str(self.uuid))
 
@@ -34,6 +34,7 @@ class CorrelationModule:
         self.X: pd.DataFrame = data
         self.selected_columns: List[str] = self.X.columns
         self.directory: str = None
+        self.name_dict: dict = dat_no_dat_nm_dict
 
     @property
     def columns(self) -> List[str]:
@@ -72,6 +73,7 @@ class CorrelationModule:
         #
         # Plot the correlation matrix
         plt.figure(figsize=(10, 8))
+        sns.set(font_scale=0.5)
         sns.heatmap(correlation_matrix, annot=True, cmap="RdYlBu")
         plt.title("Correlation Matrix")
 
@@ -79,14 +81,21 @@ class CorrelationModule:
         plt.savefig(self.directory + "/correlation_matrix.png", format="png", dpi=300)
 
     def save_heatmap_plot(self, method: Literal["pearson", "kendall", "spearman"] = "pearson") -> str:
-        plt.clf()
+        plt.rc('font', family=font_manager.FontProperties(fname=f_path).get_name())  # For Windows
+
         if self.X.empty:
             raise AttributeError("data must be initialized")
-        # self._mkdir()
-        data = self.X[self.selected_columns]
+        data = self.X.rename(columns=self.name_dict)
         corr = data.corr(method=method)
+        # sns.set(font_scale=0.5)
         sns.heatmap(corr, annot=True, cmap="coolwarm", square=True)
-        # plt.savefig(self.directory + '/heatmap_plot.jpg')
+
+        plt.xticks(fontsize=6, rotation=30)
+        plt.yticks(fontsize=6, rotation=0)
+
+
+        plt.show()
+
         buffer = io.BytesIO()
         plt.savefig(buffer, format="png", dpi=300)
         buffer.seek(0)
@@ -96,14 +105,21 @@ class CorrelationModule:
         return base64_image
 
     def save_pair_plot(self, method: Literal["pearson", "kendall", "spearman"] = "pearson") -> str:
-        plt.clf()
+        # plt.clf()
         if self.X.empty:
             raise AttributeError("data must be initialized")
-        # self._mkdir()
 
         scatter_matrix = pd.plotting.scatter_matrix(self.X)
-        # Save the pair plot as an image
-        plt.savefig(self.directory + "/pair_plot.png")
+
+        for subaxis in scatter_matrix:
+            for ax in subaxis:
+                ax.xaxis.set_ticks([])
+                ax.yaxis.set_ticks([])
+                ax.set_xlabel(self.name_dict[ax.get_xlabel()], fontsize=6, rotation=0, labelpad=10)
+                ax.set_ylabel(self.name_dict[ax.get_ylabel()], fontsize=6, rotation=0, labelpad=30)
+
+        plt.show()
+
         buffer = io.BytesIO()
         plt.savefig(buffer, format="png", dpi=300)
         buffer.seek(0)
@@ -117,20 +133,18 @@ class CorrelationModule:
     def save_descriptive_statistics_table(self):
         if self.X.empty:
             raise AttributeError("data must be initialized")
-        # self._mkdir()
 
-        # Compute the descriptive statistics
-        statistics = self.X.describe().T
+        statistics = self.X.describe()
+        statistics = statistics.rename(columns=self.name_dict)
+        statistics = statistics.T
         formatted_df = statistics.applymap(lambda x: "{:.0f}".format(x) if isinstance(x, (int, float)) else x)
-
-        # Style the table
-        # dfi.export(formatted_df, self.directory + '/descriptive_statistics.png', table_conversion='chrome')
-        # logger.info("discriptive plot saved successfully")
-
+        print(formatted_df)
         buffer = io.BytesIO()
         dfi.export(formatted_df, buffer, table_conversion='chrome')
         buffer.seek(0)
         base64_table = base64.b64encode(buffer.read()).decode()
+
+        print(base64_table)
 
         logger.info("descriptive statistics table converted to base64 successfully")
         return base64_table
@@ -146,5 +160,5 @@ class CorrelationModule:
 
 if __name__ == '__main__':
     data = pd.read_csv('./dataset/pivoted_2021.csv')
-    correlation_module = CorrelationModule(data)
+    correlation_module = CorrelationModule(data.iloc[:, 2:])
     correlation_module.save_pair_plot()

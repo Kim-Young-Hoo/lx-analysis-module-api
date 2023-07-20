@@ -18,17 +18,6 @@ class ShowAnalysis(BaseModel):
     data: List[AnalysisResult]
 
 
-    # heatmap_plot: str
-    # pair_plot: str
-    # descriptive_statistics_table: str
-
-    # regression_summary_table: str
-    # descriptive_statistics_table: str
-    # anova_table: str
-
-    # clustering_table: str
-
-
 class BaseAnalysisInput(BaseModel):
     year: str
     value_period_type: str

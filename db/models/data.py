@@ -28,6 +28,31 @@ class GgsCmmn(Base):
         return f"GgsCmmn(cmmn_cd={self.cmmn_cd}, lclsf_cmmn_cd={self.lclsf_cmmn_cd}, cmmn_cd_nm={self.cmmn_cd_nm})"
 
 
+class GgsDataInfo(Base):
+    __tablename__ = 'ggs_data_info'
+
+    dat_no = Column(String(10), primary_key=True)
+    clsf_cd = Column(String(7))
+    dat_nm = Column(String(50))
+    rgn_se = Column(String(7))
+    pd_se = Column(String(7))
+    rel_dat_list_nm = Column(String(200))
+    rel_tbl_nm = Column(String(200))
+    rel_fild_nm = Column(String(100))
+    dat_src = Column(String(200))
+    updt_cyle = Column(String(50))
+    dat_scop_bgng = Column(String(50))
+    dat_scop_end = Column(String(50))
+    rmk = Column(Text)
+    indct_orr = Column(Numeric(10))
+    use_yn = Column(Boolean)
+    dat_last_reg_ymd = Column(String(8))
+    frst_reg_dt = Column(DateTime)
+    last_mdfcn_dt = Column(DateTime)
+
+    def __str__(self):
+        return f"GgsDataInfo(dat_no={self.dat_no}, dat_nm={self.dat_nm}, clsf_cd={self.clsf_cd}, ...)"
+
 
 class GgsStatis(Base):
     __tablename__ = 'ggs_statis'

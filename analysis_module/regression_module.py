@@ -54,7 +54,30 @@ class RegressionModule:
     def get_result_summary(self) -> str:
         if not self.model:
             raise AttributeError("A model hasn't been fitted yet")
-        return self.model.summary()._repr_html_()
+        # return self.model.summary()._repr_html_()
+
+        summary_df = pd.read_html(self.model.summary().tables[0].as_html())[0]
+        summary_df.iat[7, 2] = summary_df.iat[8, 0]
+        summary_df.iat[7, 3] = summary_df.iat[8, 1]
+        summary_df = summary_df.drop(8)
+
+        # Custom index and header lists
+        custom_index = ['', '', '', '', '', '', '', '']
+        custom_header = ['속성', '값', '속성', '값']
+
+        # Set the custom index and header
+        summary_df.index = custom_index
+        summary_df.columns = custom_header
+        
+
+        buffer = io.BytesIO()
+        dfi.export(summary_df, buffer, table_conversion='chrome')
+        buffer.seek(0)
+        base64_table = base64.b64encode(buffer.read()).decode()
+
+        logger.info("summary table converted to base64 successfully")
+
+        return base64_table
 
     def get_anova_lm(self):
         if not self.model:

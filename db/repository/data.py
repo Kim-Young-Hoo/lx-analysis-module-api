@@ -1,34 +1,47 @@
 import datetime
 
+from numpy import select
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, func, and_, Integer
 import pandas as pd
 
 from core.hashing import Hasher
 
-from db.models.data import GgsStatis, GgsCmmn
+from db.models.data import GgsStatis, GgsCmmn, GgsDataInfo
 from schemas.data import ShowVariableDetail
 
 
-def retrieve_variable_list(db: Session):
+def retrieve_variable_list(year, db: Session):
     result = {}
 
-    depth1_result = db.query(GgsCmmn).filter(GgsCmmn.lclsf_cmmn_cd.like('M01%')).all()
+    depth1_result = db.query(GgsCmmn).filter(
+        GgsCmmn.cmmn_cd.like('M01%'),
+        GgsCmmn.use_yn == "Y"
+    ).order_by(GgsCmmn.indct_orr).all()
+
     for row in depth1_result:
         result[row.cmmn_cd] = {
-            "cmmn_cd_nm": row.cmmn_cd_nm,
+            "name": row.cmmn_cd_nm,
+            "order_index": int(row.indct_orr),
             "children": []
         }
 
-    depth2_result = db.query(GgsCmmn).filter(GgsCmmn.lclsf_cmmn_cd.like('M02%')).all()
+    depth2_result = db.query(GgsDataInfo).filter(
+        GgsDataInfo.dat_no.like('M0002%'),
+        and_(
+            GgsDataInfo.dat_scop_bgng.cast(Integer) <= year,
+            GgsDataInfo.dat_scop_end.cast(Integer) >= year
+        ),
+        GgsDataInfo.use_yn == "Y"
+    ).all()
+
     for row in depth2_result:
-        result[row.etc_cn_1]["children"].append(
+        result[row.clsf_cd]["children"].append(
             {
-                row.cmmn_cd: {
-                    "cmmn_cd_nm": row.cmmn_cd_nm,
-                    "etc_cn_2": row.etc_cn_2,
-                    "etc_cn_3": row.etc_cn_3,
-                    "etc_cn_4": row.etc_cn_4
+                row.dat_no: {
+                    "name": row.dat_nm,
+                    "order_index": row.indct_orr,
+                    "children": []
                 }
             }
         )
@@ -37,17 +50,30 @@ def retrieve_variable_list(db: Session):
 
 
 def retrieve_variable_detail(id: str, db: Session):
-    dummy_result = ShowVariableDetail(
-        name="some_name",
-        provider="some_name",
-        category="some_name",
-        unit="some_name",
-        recent_upload_date=datetime.date.today(),
-        update_period="some_name",
-        data_range="some_name"
-    )
+    query_template = """
+        select
+            a.dat_no,
+            (select  a1.cmmn_cd_nm from ggs_cmmn a1 where a.CLSF_CD = a1.cmmn_cd) as clsf_nm,
+            a.dat_nm,
+            (select  a1.cmmn_cd_nm from ggs_cmmn a1 where a.RGN_SE = a1.cmmn_cd) as rgn_nm,
+            (select  a1.cmmn_cd_nm from ggs_cmmn a1 where a.PD_SE = a1.cmmn_cd) as pd_nm,
+            a.REL_DAT_LIST_NM,
+            a.REL_TBL_NM,   
+            a.REL_FILD_NM,
+            a.DAT_SRC,
+            a.UPDT_CYLE,
+            a.DAT_SCOP_BGNG,
+            a.DAT_SCOP_END,
+            a.last_mdfcn_dt
+        from GGS_DATA_INFO a
+        where
+            USE_YN = 'Y'
+            and dat_no='{id}'
+        order by a.dat_no;
+    """.format(id=id)
 
-    return dummy_result
+    query = db.execute(text(query_template))
+    return query.first()
 
 
 def retrieve_variable_chart_data(id: str, year: str, value_period_type: str, chart_type, db: Session):

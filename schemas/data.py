@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import List
 
 from pydantic import EmailStr, BaseModel, Field
@@ -18,12 +18,12 @@ class ShowVariableDetail(BaseModel):
     변수의 상세정보를 반환하기 위한 dto
     """
     name: str
-    provider: str
+    source: str
     category: str
     unit: str
-    recent_upload_date: date
-    update_period: str
-    data_range: str
+    update_cycle: str
+    last_update_date: datetime
+    data_scope: str
 
 
 class ShowVariableChartData(BaseModel):

@@ -1,7 +1,7 @@
 from typing import List
 
 import pandas as pd
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from sqlalchemy import or_, inspect, text
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,9 @@ def create_correlation_analysis(analysis_data: CreateCorrelation, db: Session):
                                                     analysis_data.year,
                                                     analysis_data.value_period_type,
                                                     db)
+
+    if len(pivoted_df) == 0:
+        raise HTTPException(status_code=404, detail="데이터가 크기가 0입니다. 다른 데이터를 선택해주세요.")
 
     correlation_module = CorrelationModule(pivoted_df.iloc[:, 3:], dat_no_dat_nm_dict)
     corr_result = ShowAnalysis(data=[])
@@ -39,6 +42,9 @@ def create_regression_analysis(analysis_data: CreateRegression, db: Session):
         analysis_data.value_period_type,
         db)
 
+    if len(pivoted_df) == 0:
+        raise HTTPException(status_code=404, detail="데이터가 크기가 0입니다. 다른 데이터를 선택해주세요.")
+
     regression_module = RegressionModule(pivoted_df, analysis_data.dependent_variable, dat_no_dat_nm_dict)
     regression_module.fit()
     regression_summary_table = regression_module.get_result_summary()
@@ -46,7 +52,7 @@ def create_regression_analysis(analysis_data: CreateRegression, db: Session):
     descriptive_statistics_table = regression_module.save_descriptive_statistics_table()
 
     regression_result = ShowAnalysis(data=[])
-    regression_result.data.append(AnalysisResult(title="모형요약표", result=regression_summary_table, format="html"))
+    regression_result.data.append(AnalysisResult(title="모형요약표", result=regression_summary_table, format="base64"))
     regression_result.data.append(AnalysisResult(title="분산분석표", result=anova_table, format="base64"))
     regression_result.data.append(AnalysisResult(title="기술통계", result=descriptive_statistics_table, format="base64"))
     return regression_result
@@ -146,13 +152,12 @@ if __name__ == '__main__':
         valid_pvalue_accent=True
     )
 
-    df, dic = get_pivoted_df(create_regression.independent_variable_list + [create_regression.dependent_variable],
-                             create_regression.year,
-                             create_regression.value_period_type,
-                             get_db().__next__())
-
-    regression_module = RegressionModule(df.iloc[:, 3:], create_regression.dependent_variable, dic)
-    regression_module.fit()
-    print(regression_module.get_anova_lm())
-    # regression_module.get_result_summary()
-
+    # df, dic = get_pivoted_df(create_regression.independent_variable_list + [create_regression.dependent_variable],
+    #                          create_regression.year,
+    #                          create_regression.value_period_type,
+    #                          get_db().__next__())
+    #
+    # regression_module = RegressionModule(df.iloc[:, 3:], create_regression.dependent_variable, dic)
+    # regression_module.fit()
+    # print(regression_module.get_anova_lm())
+    # print(regression_module.get_result_summary())

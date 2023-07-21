@@ -93,9 +93,6 @@ class CorrelationModule:
         plt.xticks(fontsize=6, rotation=30)
         plt.yticks(fontsize=6, rotation=0)
 
-
-        plt.show()
-
         buffer = io.BytesIO()
         plt.savefig(buffer, format="png", dpi=300)
         buffer.seek(0)
@@ -118,8 +115,6 @@ class CorrelationModule:
                 ax.set_xlabel(self.name_dict[ax.get_xlabel()], fontsize=6, rotation=0, labelpad=10)
                 ax.set_ylabel(self.name_dict[ax.get_ylabel()], fontsize=6, rotation=0, labelpad=30)
 
-        plt.show()
-
         buffer = io.BytesIO()
         plt.savefig(buffer, format="png", dpi=300)
         buffer.seek(0)
@@ -138,13 +133,11 @@ class CorrelationModule:
         statistics = statistics.rename(columns=self.name_dict)
         statistics = statistics.T
         formatted_df = statistics.applymap(lambda x: "{:.0f}".format(x) if isinstance(x, (int, float)) else x)
-        print(formatted_df)
         buffer = io.BytesIO()
         dfi.export(formatted_df, buffer, table_conversion='chrome')
         buffer.seek(0)
         base64_table = base64.b64encode(buffer.read()).decode()
 
-        print(base64_table)
 
         logger.info("descriptive statistics table converted to base64 successfully")
         return base64_table

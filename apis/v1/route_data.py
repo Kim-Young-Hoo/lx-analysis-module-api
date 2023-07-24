@@ -9,7 +9,6 @@ from db.repository.data import *
 from db.session import get_db
 from datetime import datetime, date
 
-
 router = APIRouter()
 
 
@@ -19,15 +18,17 @@ class ChartType(str, Enum):
     BAR = "bar"
 
 
-
 @router.get("/variable", status_code=status.HTTP_200_OK)
-def get_variable_list(year: str, db: Session = Depends(get_db)):
+def get_variable_list(year: str, region: Literal["all", "gsbd"],
+                      period_unit: Literal["year", "month", "quarter", "half"],
+                      detail_period: Literal["all", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+                      db: Session = Depends(get_db)):
     """
     통계업무지원 특화서비스 데이터 카탈로그 목록을 반환한다.
     :param db: db session
     :return: 1,2 depth 형태의 카테고리명 string value json
     """
-    variable_list = retrieve_variable_list(year, db)
+    variable_list = retrieve_variable_list(year, region, period_unit, detail_period, db)
     return variable_list
 
 
@@ -48,7 +49,7 @@ def get_variable_detail(id: str, db: Session = Depends(get_db)):
         name=variable_detail.dat_nm,
         source=variable_detail.dat_src,
         category=variable_detail.rel_dat_list_nm,
-        unit=variable_detail.rgn_nm,
+        region_unit=variable_detail.rgn_nm,
         update_cycle=variable_detail.updt_cyle,
         last_update_date=variable_detail.last_mdfcn_dt,
         data_scope=variable_detail.dat_scop_bgng + "-" + variable_detail.dat_scop_end
@@ -58,17 +59,15 @@ def get_variable_detail(id: str, db: Session = Depends(get_db)):
 @router.get("/variable/{id}/chart-data", response_model=ShowVariableChartData, status_code=status.HTTP_200_OK)
 def get_variable_chart_data(id: str,
                             year: str,
-                            value_period_type: str,
+                            period_unit: str,
                             chart_type: ChartType = Query(...),
                             db: Session = Depends(get_db)):
-
-    variable_chart_data = retrieve_variable_chart_data(id, year, value_period_type, chart_type, db)
+    variable_chart_data = retrieve_variable_chart_data(id, year, period_unit, chart_type, db)
 
     if not variable_chart_data:
         raise HTTPException(detail=f"variable with ID {id} does not exist")
 
     return variable_chart_data
-
 
 # @router.delete("/variable/{id}")
 # def delete_blog(id: int, db: Session = Depends(get_db)):

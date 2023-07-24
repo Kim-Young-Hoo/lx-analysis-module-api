@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import List
+from typing import List, Dict, Union
 
 from pydantic import EmailStr, BaseModel, Field
 
@@ -20,7 +20,7 @@ class ShowVariableDetail(BaseModel):
     name: str
     source: str
     category: str
-    unit: str
+    region_unit: str
     update_cycle: str
     last_update_date: datetime
     data_scope: str
@@ -32,8 +32,6 @@ class ShowVariableChartData(BaseModel):
     TODO: chart type에 대해서 enum화 필요
     """
     name: str
-    char_type: str
-    area_code: str
-    data_value: float
-
+    type: str
+    data: List[Dict[str, Union[str, int]]]
 

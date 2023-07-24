@@ -19,8 +19,13 @@ from matplotlib import font_manager
 
 
 BASE_PATH = "./output/regression/"
-f_path = 'C:/Windows/Fonts/KoPubDotumLight.ttf'
-plt.rc('font', family=font_manager.FontProperties(fname=f_path).get_name())  # For Windows
+import matplotlib.font_manager
+font_list = matplotlib.font_manager.findSystemFonts(fontpaths=None, fontext='ttf')
+[matplotlib.font_manager.FontProperties(fname=font).get_name() for font in font_list if 'Nanum' in font]
+import matplotlib.pyplot as plt
+plt.rc('font', family='NanumGothicCoding')
+import matplotlib as mpl
+mpl.rcParams['axes.unicode_minus'] = False
 
 
 class CorrelationModule:
@@ -81,7 +86,6 @@ class CorrelationModule:
         plt.savefig(self.directory + "/correlation_matrix.png", format="png", dpi=300)
 
     def save_heatmap_plot(self, method: Literal["pearson", "kendall", "spearman"] = "pearson") -> str:
-        plt.rc('font', family=font_manager.FontProperties(fname=f_path).get_name())  # For Windows
 
         if self.X.empty:
             raise AttributeError("data must be initialized")
@@ -90,8 +94,8 @@ class CorrelationModule:
         # sns.set(font_scale=0.5)
         sns.heatmap(corr, annot=True, cmap="coolwarm", square=True)
 
-        plt.xticks(fontsize=6, rotation=30)
-        plt.yticks(fontsize=6, rotation=0)
+        plt.xticks(fontsize=4, rotation=20)
+        plt.yticks(fontsize=4, rotation=20)
 
         buffer = io.BytesIO()
         plt.savefig(buffer, format="png", dpi=300)
@@ -112,8 +116,8 @@ class CorrelationModule:
             for ax in subaxis:
                 ax.xaxis.set_ticks([])
                 ax.yaxis.set_ticks([])
-                ax.set_xlabel(self.name_dict[ax.get_xlabel()], fontsize=6, rotation=0, labelpad=10)
-                ax.set_ylabel(self.name_dict[ax.get_ylabel()], fontsize=6, rotation=0, labelpad=30)
+                ax.set_xlabel(self.name_dict[ax.get_xlabel()], fontsize=4, rotation=20, labelpad=10)
+                ax.set_ylabel(self.name_dict[ax.get_ylabel()], fontsize=4, rotation=20, labelpad=30)
 
         buffer = io.BytesIO()
         plt.savefig(buffer, format="png", dpi=300)
@@ -134,10 +138,9 @@ class CorrelationModule:
         statistics = statistics.T
         formatted_df = statistics.applymap(lambda x: "{:.0f}".format(x) if isinstance(x, (int, float)) else x)
         buffer = io.BytesIO()
-        dfi.export(formatted_df, buffer, table_conversion='chrome')
+        dfi.export(formatted_df, buffer)
         buffer.seek(0)
         base64_table = base64.b64encode(buffer.read()).decode()
-
 
         logger.info("descriptive statistics table converted to base64 successfully")
         return base64_table

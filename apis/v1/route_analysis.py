@@ -8,18 +8,18 @@ router = APIRouter()
 
 
 @router.post("/correlation", response_model=ShowAnalysis, status_code=status.HTTP_201_CREATED)
-def create_user(analysis_data: CreateCorrelation, db: Session = Depends(get_db)):
+def create_correlation(analysis_data: CreateCorrelation, db: Session = Depends(get_db)):
     analysis_result = create_correlation_analysis(analysis_data=analysis_data, db=db)
     return analysis_result
 
 
 @router.post("/regression", response_model=ShowAnalysis, status_code=status.HTTP_201_CREATED)
-def create_user(analysis_data: CreateRegression, db: Session = Depends(get_db)):
+def create_regression(analysis_data: CreateRegression, db: Session = Depends(get_db)):
     analysis_result = create_regression_analysis(analysis_data=analysis_data, db=db)
     return analysis_result
 
 
 @router.post("/clustering", response_model=ShowAnalysis, status_code=status.HTTP_201_CREATED)
-def create_user(analysis_data: CreateClustering, db: Session = Depends(get_db)):
+def create_clustering(analysis_data: CreateClustering, db: Session = Depends(get_db)):
     analysis_result = create_clustering_analysis(analysis_data=analysis_data, db=db)
     return analysis_result

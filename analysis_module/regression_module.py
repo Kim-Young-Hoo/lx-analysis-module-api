@@ -39,7 +39,7 @@ class RegressionModule:
         statistics = statistics.T
         formatted_df = statistics.applymap(lambda x: "{:.0f}".format(x) if isinstance(x, (int, float)) else x)
         buffer = io.BytesIO()
-        dfi.export(formatted_df, buffer, table_conversion='chrome')
+        dfi.export(formatted_df, buffer)
         buffer.seek(0)
         base64_table = base64.b64encode(buffer.read()).decode()
 
@@ -71,7 +71,7 @@ class RegressionModule:
         
 
         buffer = io.BytesIO()
-        dfi.export(summary_df, buffer, table_conversion='chrome')
+        dfi.export(summary_df, buffer)
         buffer.seek(0)
         base64_table = base64.b64encode(buffer.read()).decode()
 
@@ -89,7 +89,7 @@ class RegressionModule:
             index=self.name_dict
         )
         buffer = io.BytesIO()
-        dfi.export(anova_table, buffer, table_conversion='chrome')
+        dfi.export(anova_table, buffer)
         buffer.seek(0)
         base64_table = base64.b64encode(buffer.read()).decode()
 

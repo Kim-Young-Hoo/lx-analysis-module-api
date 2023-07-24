@@ -1,0 +1,2 @@
+docker build -t api-statistics-python .
+docker run -d -p 11100:11100 --name api-statistics-python api-statistics-python

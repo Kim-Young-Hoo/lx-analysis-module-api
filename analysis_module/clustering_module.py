@@ -3,6 +3,7 @@ from abc import abstractmethod, ABCMeta
 
 import numpy
 import numpy as np
+import pandas as pd
 from sklearn.datasets import make_blobs
 from sklearn.cluster import KMeans
 import matplotlib.pyplot as plt
@@ -18,21 +19,22 @@ BASE_PATH = "./output/clustering/"
 
 
 class BaseModule(metaclass=ABCMeta):
-    def __init__(self, data: numpy.array, dat_no_dat_nm_dict: dict):
+    def __init__(self, data: pd.DataFrame, dat_no_dat_nm_dict: dict):
         self.uuid = uuid.uuid4()
         logger.info("class uuid : " + str(self.uuid))
         self.directory: str = None
-        self.data: np.array = data
+        self.data: pd.DataFrame = data
         self.model: object = None
         self.db_connection: object = None
         self.name_dict: dict = dat_no_dat_nm_dict
 
+    @abstractmethod
+    def fit(self, n_init=100, max_iter=300) -> None:
+        pass
 
     @abstractmethod
-    def fit(self, n_init=100, max_iter=300) -> None: pass
-
-    @abstractmethod
-    def predict(self, data): pass
+    def predict(self, data):
+        pass
 
     def save_model(self) -> None:
 
@@ -56,8 +58,8 @@ class BaseModule(metaclass=ABCMeta):
 
 class BaseClusteringModule(BaseModule):
 
-    def __init__(self, data):
-        super().__init__(data)
+    def __init__(self, data, dat_no_dat_nm_dict: dict):
+        super().__init__(data, dat_no_dat_nm_dict)
 
     @abstractmethod
     def set_optimal_k(self, method: str) -> None: pass
@@ -81,8 +83,8 @@ class BaseClusteringModule(BaseModule):
 class GMMModule(BaseClusteringModule):
     optimal_k_methods = {"BIC", "AIC"}
 
-    def __init__(self, data: numpy.array):
-        super().__init__(data)
+    def __init__(self, data: pd.DataFrame, dat_no_dat_nm_dict: dict):
+        super().__init__(data, dat_no_dat_nm_dict)
 
         self.optimal_k: int = 2
         self.k_method: str = None
@@ -105,6 +107,10 @@ class GMMModule(BaseClusteringModule):
 
     def set_optimal_k(self, method: str = "AIC", fixed_size=2) -> None:
 
+        if method == "fixed":
+            self.optimal_k = fixed_size
+            return
+
         if method and method not in self.optimal_k_methods:
             raise ValueError("not supported method")
 
@@ -123,8 +129,11 @@ class GMMModule(BaseClusteringModule):
 
     def fit(self, n_init=100, max_iter=300) -> None:
 
-        if not self.data.any():
-            raise AttributeError("data must be initialized")
+        # if not self.data.any():
+        #     raise AttributeError("data must be initialized")
+        print(self.data)
+        self.data = self.data.dropna()
+        print(self.data)
 
         self.model = GaussianMixture(
             n_components=self.optimal_k,
@@ -191,6 +200,12 @@ class GMMModule(BaseClusteringModule):
         plt.scatter(self.data[:, 0], self.data[:, 1])
         plt.savefig(self.directory + '/data_scatter_plot.jpg')
         logger.info("data scatter plot saved successfully")
+
+    def get_clustering_result(self):
+        labels = self.model.predict(self.data)  # Get cluster labels
+        # result_df = pd.DataFrame({'stdg': self.data.index, 'clustering label': self.labels})
+        print(labels)
+        logger.info("model is successfully fitted")
 
 
 class KMeansModule(BaseClusteringModule):
@@ -328,23 +343,24 @@ if __name__ == '__main__':
     # y : 레이블
     x, y = make_blobs(n_samples=5000, cluster_std=1.0, centers=5)
 
-    kmeans = KMeansModule(x)
-    kmeans.save_data_scatter_plot()
-    kmeans.set_k_range(2, 10)
-    kmeans.set_optimal_k()
-    kmeans.fit()
-    kmeans.save_model()
-    kmeans.save_k_method_output_plot()
-    kmeans.save_cluster_output_plot()
+    # kmeans = KMeansModule(x)
+    # kmeans.save_data_scatter_plot()
+    # kmeans.set_k_range(2, 10)
+    # kmeans.set_optimal_k()
+    # kmeans.fit()
+    # kmeans.save_model()
+    # kmeans.save_k_method_output_plot()
+    # kmeans.save_cluster_output_plot()
 
-    gmm = GMMModule(x)
+    gmm = GMMModule(x, {})
     gmm.save_data_scatter_plot()
-    gmm.set_k_range(2, 10)
-    gmm.set_optimal_k()
+    # gmm.set_k_range(2, 10)
+    gmm.optimal_k = 5
+    # gmm.set_optimal_k()
     gmm.fit()
-    gmm.save_model()
-    gmm.save_k_method_output_plot()
-    gmm.save_cluster_output_plot()
+    # gmm.save_model()
+    # gmm.save_k_method_output_plot()
+    # gmm.save_cluster_output_plot()
 
     # with open("./c603868d-4109-4216-ae82-f5055c05ee52/model.pickle", "rb") as fr:
     #     kmeans = pickle.load(fr)

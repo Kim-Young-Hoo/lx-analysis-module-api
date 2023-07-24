@@ -1,7 +1,8 @@
 from datetime import date
-from typing import Optional, List, Union, Any
+from typing import Optional, List, Union, Any, Literal
 
 from pydantic import BaseModel, Field, root_validator
+from pydantic.v1 import validator
 
 
 class AnalysisResult(BaseModel):
@@ -20,8 +21,7 @@ class ShowAnalysis(BaseModel):
 
 class BaseAnalysisInput(BaseModel):
     year: str
-    value_period_type: str
-
+    period_unit: Literal["year", "month", "quarter", "half"]
 
 class CreateCorrelation(BaseAnalysisInput):
     """
@@ -30,7 +30,7 @@ class CreateCorrelation(BaseAnalysisInput):
     {
         "variable_list": ["M026006", "M026002"],
         "year": "2021",
-        "value_period_type": "yr_vl",
+        "period_unit": "yr_vl",
         "testing_side": "both",
         "valid_pvalue_accent": true
     }
@@ -54,3 +54,9 @@ class CreateClustering(BaseAnalysisInput):
     """
     variable_list: List[str]
     n_point: int
+
+    @validator('n_point')
+    def check_min_n_point(cls, v):
+        if v < 2:
+            raise ValueError("n은 최소 2 이상입니다.")
+        return v

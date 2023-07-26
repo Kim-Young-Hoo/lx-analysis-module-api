@@ -33,5 +33,11 @@ class ShowVariableChartData(BaseModel):
     """
     name: str
     type: str
-    data: List[Dict[str, Union[str, int]]]
+    data: List[Dict[str, Union[str, int, float]]]
+
+
+class ShowFilterData(BaseModel):
+    year: List[str]
+    period_unit: List[str]
+    detail_period: Dict[str, List[str]]
 

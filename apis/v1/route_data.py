@@ -1,13 +1,9 @@
 from enum import Enum
-from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from requests import Session
-from starlette import status
+from fastapi import APIRouter, Depends, Query
 from schemas.data import *
 from db.repository.data import *
 from db.session import get_db
-from datetime import datetime, date
 
 router = APIRouter()
 
@@ -56,17 +52,27 @@ def get_variable_detail(id: str, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/filter-list", response_model=ShowFilterData, status_code=status.HTTP_200_OK)
+def get_filter_list(db: Session = Depends(get_db)):
+    filter_list = retrieve_filter_list(db)
+    return filter_list
+
+
+
+
+
 @router.get("/variable/{id}/chart-data", response_model=ShowVariableChartData, status_code=status.HTTP_200_OK)
 def get_variable_chart_data(id: str,
                             year: str,
                             period_unit: str,
+                            detail_period: str,
                             chart_type: ChartType = Query(...),
                             db: Session = Depends(get_db)):
-    variable_chart_data = retrieve_variable_chart_data(id, year, period_unit, chart_type, db)
+    variable_chart_data = retrieve_variable_chart_data(id, year, period_unit, detail_period, chart_type, db)
 
     if not variable_chart_data:
         raise HTTPException(detail=f"variable with ID {id} does not exist")
-
+    print(variable_chart_data)
     return variable_chart_data
 
 # @router.delete("/variable/{id}")

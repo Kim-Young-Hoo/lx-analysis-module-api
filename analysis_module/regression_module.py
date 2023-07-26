@@ -23,7 +23,7 @@ class RegressionModule:
         self.data = data
 
         self.y_column_id: str = target_column_id
-        self.X_column_id_list: List[str] = self.data.columns.to_list()
+        self.X_column_id_list: List[str] = self.data.iloc[:, 3:].columns.to_list()
 
         self.X_column_id_list.remove(self.y_column_id)
         self.directory: str = None
@@ -48,7 +48,7 @@ class RegressionModule:
 
     def fit(self):
         formula = self.y_column_id + " ~ " + " + ".join(self.X_column_id_list)
-        model = ols(formula, data=self.data)
+        model = ols(formula, data=self.data.iloc[:, 3:])
         self.model = model.fit()
 
     def get_result_summary(self) -> str:

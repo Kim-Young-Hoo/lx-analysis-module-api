@@ -1,10 +1,13 @@
 import datetime
+import os
+import uuid
+
 from fastapi import HTTPException
-from typing import Literal
+from typing import Literal, List
 
 from numpy import select
 from sqlalchemy.orm import Session, aliased
-from sqlalchemy import create_engine, text, func, and_, Integer, or_, bindparam
+from sqlalchemy import create_engine, text, func, and_, Integer, or_, bindparam, distinct
 import pandas as pd
 from starlette import status
 
@@ -21,6 +24,10 @@ def get_period_unit_list(period_unit):
         "quarter": ["M030001", "M030002"],
         "month": ["M030001"]
     }
+
+    if period_unit not in data:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="기간 단위 조건이 맞지 않습니다.")
+
     return data.get(period_unit, [])
 
 
@@ -34,7 +41,7 @@ def get_detail_filter_condition(period_unit, detail_period):
     }
 
     if detail_period not in data[period_unit]:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="데이터 조건이 맞지 않습니다.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="기간 설정 조건이 맞지 않습니다.")
 
     return data[period_unit][detail_period]
 
@@ -47,7 +54,22 @@ def get_region_unit_id(region_unit):
         "emd": "M040004",
         "sggemd": "M040005"
     }
+
+    if region_unit not in data[region_unit]:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="잘못된 지역코드입니다.")
+
     return data.get(region_unit, [])
+
+
+def get_value_period_list(period_unit: str) -> List[str]:
+    if period_unit == "year":
+        return ["yr_vl"]
+    elif period_unit == "month":
+        return ["jan", "feb", "mar", "apr", "may", "jun", "july", "aug", "sep", "oct", "nov", "dec"]
+    elif period_unit == "quarter":
+        return ["qu_1", "qu_2", "qu_3", "qu_4"]
+    elif period_unit == "half":
+        return ["ht_1", "ht_2"]
 
 
 def retrieve_variable_list(year: str,
@@ -144,61 +166,162 @@ def retrieve_variable_detail(id: str, db: Session):
     return query.first()
 
 
-def retrieve_variable_chart_data(id: str, year: str, period_unit: str, chart_type, db: Session):
-    # sql_query = text(
-    #     '''
-    #     SELECT
-    #         *
-    #     FROM
-    #         ggs_statis
-    #     WHERE
-    #         yr = '{year}'
-    #     AND dat_no = '{id}'
-    #     '''.format(year=year, id=id, )
-    # )
-    # db_result = db.execute(sql_query)
-    # df = pd.DataFrame(db_result.fetchall(), columns=db_result.keys())
+def retrieve_variable_chart_data(id: str, year: str, period_unit: str, detail_period, chart_type, db: Session):
+    column = get_detail_filter_condition(period_unit, detail_period)
+
+    query_template = """
+        select 
+            stat.{column}::integer,
+            stdg.stdg_nm 
+        from 
+            ggs_statis stat
+        left join 
+            ggs_stdg stdg
+        on 
+            stat.stdg_cd = stdg.stdg_cd 
+        where 
+            dat_no=:id
+        and
+            stat.yr=:year
+        and stat.{column}::integer is not null
+    """.format(column=column)
+
+    params = {
+        "year": year,
+        "id": id
+    }
+
+    query = text(query_template)
+    db_result = db.execute(query, params).fetchall()
+
+    if len(db_result) == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="해당 ID의 데이터가 없습니다.")
+
+    dat_nm = db.execute(text("select dat_nm from ggs_data_info gdi where dat_no=:id"), {"id": id}).first()[0]
 
     if chart_type == "pie":
         return {
-            "name": 'dummy pie chart',
+            "name": '{}년 {} 파이차트'.format(year, dat_nm),
             "type": 'pie',
-            "data": [
-                {"value": 108, "name": 'dummy1'},
-                {"value": 735, "name": 'dummy2'},
-                {"value": 580, "name": 'dummy3'},
-                {"value": 484, "name": 'dummy4'},
-                {"value": 300, "name": 'dummy5'}
-            ]
+            "data": [{"value": ele[0], "name": ele[1]} for ele in db_result]
         }
 
     elif chart_type == "bar":
         return {
-            "name": 'dummy pie chart',
-            "type": 'pie',
-            "data": [
-                {"value": 108, "name": 'dummy1'},
-                {"value": 735, "name": 'dummy2'},
-                {"value": 580, "name": 'dummy3'},
-                {"value": 484, "name": 'dummy4'},
-                {"value": 300, "name": 'dummy5'}
-            ]
+            "name": '{}년 {} 바 차트'.format(year, dat_nm),
+            "type": 'bar',
+            "data": [{"value": ele[0], "name": ele[1]} for ele in db_result]
         }
 
     elif chart_type == "histogram":
+        histogram_data = get_histogram_data([db_result[i][0] for i in range(len(db_result))])
         return {
-            "name": 'dummy histogram',
+            "name": '{}년 {} 히스토그램'.format(year, dat_nm),
             "type": 'bar',
-            "data": [
-                {"value": 20, "x_axis": 5},
-                {"value": 52, "x_axis": 15},
-                {"value": 200, "x_axis": 25},
-                {"value": 334, "x_axis": 35},
-                {"value": 390, "x_axis": 45},
-                {"value": 330, "x_axis": 55},
-                {"value": 220, "x_axis": 65},
-            ]
-
+            "data": histogram_data
         }
 
-    # return db_result
+
+def get_histogram_data(data):
+    data = sorted(data)
+
+    num_bins = 100
+    data_min = min(data)
+    data_max = max(data)
+    bin_width = (data_max - data_min) // num_bins
+
+    bins = [0] * num_bins
+
+    for d in data:
+        bin_index = min(int((d - data_min) // bin_width), num_bins - 1)
+        bins[bin_index] += 1
+
+    histogram_data = []
+    for i in range(num_bins):
+        x_position = data_min + (bin_width * i) + int(bin_width / 2)  # Use the midpoint of the bin
+        histogram_data.append({
+            "x_axis": x_position,
+            "count": bins[i]
+        })
+    return histogram_data
+
+
+def retrieve_filter_list(db: Session):
+    distinct_years = db.query(distinct(GgsStatis.yr)).order_by(GgsStatis.yr).all()
+    years = [year[0] for year in distinct_years]
+
+    return {
+        "year": years,
+        "period_unit": ["year", "half", "quarter", "month"],
+        "detail_period": {
+            "year": ["all"],
+            "half": ["1", "2"],
+            "quarter": ["1", "2", "3", "4"],
+            "month": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+        }
+    }
+
+
+def get_pivoted_df(variable_list: List[str],
+                   year: str,
+                   period_unit: Literal["year", "month", "quarter", "half"],
+                   detail_period: Literal["all", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+                   db: Session
+                   ):
+    if len(variable_list) > 10:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="variable list의 최대 개수는 10개입니다.")
+
+    value_period_list = get_detail_filter_condition(period_unit, detail_period)
+
+    query_template = """
+        SELECT
+            stat.stdg_cd,
+            stat.yr,
+            stat.dat_no,
+            info.dat_nm,
+            stdg.stdg_nm,
+            stat.jan,
+            stat.feb,
+            stat.mar,
+            stat.apr,
+            stat.may,
+            stat.jun,
+            stat.july,
+            stat.aug,
+            stat.sep,
+            stat.oct,
+            stat.nov,
+            stat.dec,
+            stat.qu_1,
+            stat.qu_2,
+            stat.qu_3,
+            stat.qu_4,
+            stat.ht_1,
+            stat.ht_2,
+            stat.yr_vl
+        FROM ggs_statis stat
+        JOIN ggs_data_info info ON stat.dat_no = info.dat_no
+        JOIN ggs_stdg stdg ON stat.stdg_cd = stdg.stdg_cd 
+        WHERE stat.dat_no IN ({})
+        AND yr='{}'
+    """
+    placeholders = ', '.join([':param{}'.format(i) for i in range(len(variable_list))])
+    query = text(query_template.format(placeholders, year))
+    params = {f'param{i}': value for i, value in enumerate(variable_list)}
+    result = db.execute(query, params)
+
+    df = pd.DataFrame(result.fetchall(), columns=result.keys())
+    melted_df = pd.melt(df, id_vars=['yr', 'stdg_nm', 'dat_no', 'dat_nm'], value_vars=value_period_list)
+    pivoted_df = pd.pivot_table(melted_df, values='value', index=['yr', 'stdg_nm', 'variable'], columns='dat_no')
+
+    dat_no_dat_nm_dict = df.set_index('dat_no')['dat_nm'].to_dict()
+
+    # pivoted_df.to_csv("analysis_module/dataset/data.csv")
+    # pivoted_df = pd.read_csv("analysis_module/dataset/data.csv")
+
+    _uuid = uuid.uuid4()
+
+    pivoted_df.to_csv("./data{}.csv".format(_uuid))
+    pivoted_df = pd.read_csv("./data{}.csv".format(_uuid))
+    os.remove("./data{}.csv".format(_uuid))
+    return pivoted_df, dat_no_dat_nm_dict

@@ -7,8 +7,8 @@ from pydantic.v1 import validator
 
 class AnalysisResult(BaseModel):
     title: str  # 결과물 이름
-    result: Any  # 결과물 (bas64 이미지, html 등의 string)
     format: str  # 결과물 포맷
+    result: Any  # 결과물 (bas64 이미지, html 등의 string)
 
 
 class ShowAnalysis(BaseModel):
@@ -22,6 +22,8 @@ class ShowAnalysis(BaseModel):
 class BaseAnalysisInput(BaseModel):
     year: str
     period_unit: Literal["year", "month", "quarter", "half"]
+    detail_period: Literal["all", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+
 
 class CreateCorrelation(BaseAnalysisInput):
     """

@@ -1,3 +1,5 @@
+import base64
+import io
 import os
 from abc import abstractmethod, ABCMeta
 
@@ -12,6 +14,7 @@ import uuid
 import pickle
 
 from sklearn.mixture import GaussianMixture
+import dataframe_image as dfi
 
 from utils.logging_module import logger
 
@@ -68,7 +71,7 @@ class BaseClusteringModule(BaseModule):
     def save_k_method_output_plot(self) -> None: pass
 
     @abstractmethod
-    def save_cluster_output_plot(self) -> None: pass
+    def get_cluster_output_plot(self) -> None: pass
 
     @abstractmethod
     def save_data_scatter_plot(self) -> None: pass
@@ -86,6 +89,7 @@ class GMMModule(BaseClusteringModule):
     def __init__(self, data: pd.DataFrame, dat_no_dat_nm_dict: dict):
         super().__init__(data, dat_no_dat_nm_dict)
 
+        self.labels = []
         self.optimal_k: int = 2
         self.k_method: str = None
         self.k_range: range = range(2, 10)
@@ -129,17 +133,17 @@ class GMMModule(BaseClusteringModule):
 
     def fit(self, n_init=100, max_iter=300) -> None:
 
-        # if not self.data.any():
-        #     raise AttributeError("data must be initialized")
-        print(self.data)
+        if not len(self.data):
+            raise AttributeError("data must be initialized")
         self.data = self.data.dropna()
-        print(self.data)
-
         self.model = GaussianMixture(
             n_components=self.optimal_k,
             n_init=n_init,
             max_iter=max_iter
-        ).fit(self.data)
+        ).fit(self.data.iloc[:, 3:])
+
+        self.labels = self.model.predict(self.data.iloc[:, 3:])  # Get cluster labels
+        self.data["labels"] = self.labels
 
         logger.info("model is successfully fitted")
 
@@ -172,28 +176,27 @@ class GMMModule(BaseClusteringModule):
                     marker='o', label='Min AIC')
         plt.savefig(self.directory + '/aic_bic_scores.jpg')
 
-    def save_cluster_output_plot(self) -> None:
-        plt.clf()
+    def get_cluster_output_plot(self) -> None:
+
         if not self.model:
             raise AttributeError("model is not fitted yet")
 
-        if not self.data.any():
+        if not len(self.data):
             raise AttributeError("data must be initialized")
 
-        labels = self.model.predict(self.data)
-
         for label in range(self.optimal_k):
-            plt.scatter(self.data[labels == label, 0], self.data[labels == label, 1], label=f'Cluster {label + 1}')
+            plt.scatter(self.data.iloc[self.labels == label, 3], self.data.iloc[self.labels == label, 4], label=f'Cluster {label + 1}')
 
-        plt.legend()
-
-        self._mkdir()
-        plt.savefig(self.directory + '/cluster_output.jpg')
+        buffer = io.BytesIO()
+        plt.savefig(buffer, format="png", dpi=300)
+        buffer.seek(0)
+        base64_image = base64.b64encode(buffer.read()).decode()
         logger.info("clustering output plot saved successfully")
+        return base64_image
 
     def save_data_scatter_plot(self) -> None:
         plt.clf()
-        if not self.data.any():
+        if not len(self.data):
             raise AttributeError("data must be initialized")
 
         self._mkdir()
@@ -202,10 +205,20 @@ class GMMModule(BaseClusteringModule):
         logger.info("data scatter plot saved successfully")
 
     def get_clustering_result(self):
-        labels = self.model.predict(self.data)  # Get cluster labels
-        # result_df = pd.DataFrame({'stdg': self.data.index, 'clustering label': self.labels})
-        print(labels)
-        logger.info("model is successfully fitted")
+        """
+        clustering 된 결과를 반환한다
+        index(지역코드), label(클러스터링 레이블)의 헤더로 구성
+        """
+
+        columns = ["stdg_nm", "labels"]
+        selected_data = self.data[columns]
+        json_dict = selected_data.to_dict(orient='records')
+
+        logger.info("clustering result table saved successfully")
+        return json_dict
+
+
+
 
 
 class KMeansModule(BaseClusteringModule):
@@ -305,7 +318,7 @@ class KMeansModule(BaseClusteringModule):
         else:
             logger.warning("no screenshot to save")
 
-    def save_cluster_output_plot(self) -> None:
+    def get_cluster_output_plot(self) -> None:
         plt.clf()
         if not self.model:
             raise AttributeError("model is not fitted yet")
@@ -342,6 +355,7 @@ if __name__ == '__main__':
     # x : 데이터
     # y : 레이블
     x, y = make_blobs(n_samples=5000, cluster_std=1.0, centers=5)
+    data = pd.DataFrame({'Feature 1': x[:, 0], 'Feature 2': x[:, 1], 'Cluster': y})
 
     # kmeans = KMeansModule(x)
     # kmeans.save_data_scatter_plot()
@@ -352,16 +366,16 @@ if __name__ == '__main__':
     # kmeans.save_k_method_output_plot()
     # kmeans.save_cluster_output_plot()
 
-    gmm = GMMModule(x, {})
-    gmm.save_data_scatter_plot()
+    gmm = GMMModule(data, {})
+    # gmm.save_data_scatter_plot()
     # gmm.set_k_range(2, 10)
     gmm.optimal_k = 5
     # gmm.set_optimal_k()
     gmm.fit()
+    gmm.get_clustering_result()
     # gmm.save_model()
     # gmm.save_k_method_output_plot()
-    # gmm.save_cluster_output_plot()
+    gmm.get_cluster_output_plot()
 
     # with open("./c603868d-4109-4216-ae82-f5055c05ee52/model.pickle", "rb") as fr:
     #     kmeans = pickle.load(fr)
-    # print(kmeans)
